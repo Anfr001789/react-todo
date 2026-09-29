@@ -1,102 +1,120 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import PostList from "./components/Postlist.tsx";
+import type { Post } from "./types/post";
 
-// Menentukan bentuk data satu tugas
-interface Todo {
-  id: number;
-  text: string;
-  completed: boolean;
-}
+// Alamat API
+const API_URL = "https://jsonplaceholder.typicode.com/posts";
 
 function App() {
-  // State untuk menyimpan daftar tugas
-  const [todos, setTodos] = useState<Todo[]>([]);
+  // Menyimpan data posting dari API
+  const [posts, setPosts] = useState<Post[]>([]);
 
-  // State untuk menyimpan isi input
-  const [input, setInput] = useState<string>("");
+  // Menandakan proses pengambilan data sedang berjalan
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  function addTodo(): void {
-    const text = input.trim();
+  // Menyimpan pesan error jika request gagal
+  const [error, setError] = useState<string>("");
 
-    // Jangan menambahkan tugas kosong
-    if (text === "") {
-      return;
-    }
+  const [search, setSearch] = useState<string>("");
 
-    const newTodo: Todo = {
-      id: Date.now(),
-      text: text,
-      completed: false
-    };
+  const filteredPosts = posts.filter(function (post) {
+  const keyword = search.toLowerCase();
 
-    // Membuat array baru berisi tugas lama dan tugas baru
-    setTodos([...todos, newTodo]);
+  return (
+    post.title.toLowerCase().includes(keyword) ||
+    post.body.toLowerCase().includes(keyword)
+    );
+  });
 
-    // Mengosongkan input
-    setInput("");
-  }
 
-  function toggleTodo(id: number): void {
-    const updatedTodos = todos.map(function (todo): Todo {
-      if (todo.id === id) {
-        return {
-          ...todo,
-          completed: !todo.completed
-        };
+  // Fungsi untuk mengambil data dari API
+  async function fetchPosts(): Promise<void> {
+    try {
+      // Menampilkan status loading
+      setIsLoading(true);
+
+      // Menghapus error lama
+      setError("");
+
+      // Mengirim HTTP GET request
+      const response: Response = await fetch(API_URL);
+
+      // Memeriksa status response
+      if (!response.ok) {
+        throw new Error(
+          `Request gagal dengan status ${response.status}`
+        );
       }
 
-      return todo;
-    });
+      // Mengubah response JSON menjadi array Post
+      const data: Post[] = await response.json();
 
-    setTodos(updatedTodos);
+      // Menyimpan data ke state
+      setPosts(data);
+    } catch (error: unknown) {
+      // Memeriksa apakah error berupa object Error
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("Terjadi kesalahan yang tidak diketahui.");
+      }
+    } finally {
+      // Selalu dijalankan setelah proses selesai,
+      // baik berhasil maupun gagal
+      setIsLoading(false);
+    }
   }
 
-  function deleteTodo(id: number): void {
-    const updatedTodos = todos.filter(function (todo): boolean {
-      return todo.id !== id;
-    });
+  /*
+    useEffect dijalankan setelah komponen pertama kali
+    ditampilkan di browser.
 
-    setTodos(updatedTodos);
-  }
+    Array [] berarti efek ini hanya dijalankan sekali.
+  */
+  useEffect(function () {
+    fetchPosts();
+  }, []);
 
   return (
     <main className="container">
-      <h1>To-Do List React</h1>
+      <header className="page-header">
+        <h1>Data Posting</h1>
+        <p>Contoh React mengambil data dari API</p>
+      </header>
 
-      <div className="form">
-        <input
-          value={input}
-          onChange={function (event) {
-            setInput(event.target.value);
-          }}
-          onKeyDown={function (event) {
-            if (event.key === "Enter") {
-              addTodo();
-            }
-          }}
-          placeholder="Masukkan tugas"
-        />
+      {/* Kondisi loading */}
+      {isLoading && <p className="status">Memuat data...</p>}
 
-        <button onClick={addTodo}>Tambah</button>
-      </div>
+      {/* Kondisi error */}
+      {!isLoading && error !== "" && (
+        <section className="error-box">
+          <p>Gagal mengambil data: {error}</p>
 
-      <ul>
-        {todos.map(function (todo) {
-          return (
-            <li key={todo.id}>
-              <span
-                onClick={() => toggleTodo(todo.id)}
-                className={todo.completed ? "completed" : ""}
-              >
-                {todo.text}
-              </span>
+          <button onClick={fetchPosts}>
+            Coba Lagi
+          </button>
+        </section>
+      )}
 
-              <button onClick={() => deleteTodo(todo.id)}>
-                Hapus
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {/* Kondisi berhasil */}
+      {!isLoading && error === "" && (
+        <>
+          <input
+              className="search-input"
+              type="search"
+              value={search}
+              onChange={function (event) {
+                setSearch(event.target.value);
+              }}
+              placeholder="Cari posting..."
+            />
+          <button onClick={fetchPosts}>
+            Muat Ulang Data
+          </button>
+
+          <PostList posts={filteredPosts} />
+        </>
+      )}
     </main>
   );
 }
